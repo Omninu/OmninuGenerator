@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OMNINU Generator</title>
+<meta name="description" content="OMNINU Generator: live random number draw.">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070818;
+    --panel: rgba(255,255,255,0.035);
+    --line: rgba(140,170,255,0.18);
+    --text: #eef1ff;
+    --muted: #8f9ccc;
+    --cyan: #7fe8ff;
+    --pink: #f07ad8;
+    --gold1: #ffe27a;
+    --gold2: #ff9a3c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(900px 600px at 85% 20%, rgba(240,122,216,0.16), transparent 60%),
+      radial-gradient(800px 600px at 10% 90%, rgba(127,232,255,0.12), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Source Sans 3", system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  header img { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(127,232,255,0.5); box-shadow: 0 0 24px rgba(240,122,216,0.35); }
+  .brand { display: flex; flex-direction: column; }
+  .brand h1 { margin: 0; font-size: clamp(26px, 4vw, 40px); font-weight: 900; letter-spacing: 0.02em; line-height: 1; }
+  .brand h1 span { background: linear-gradient(90deg, var(--cyan), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; letter-spacing: 0.22em; text-transform: uppercase; font-size: 12px; color: var(--cyan); }
+  .live { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 10px var(--pink); animation: blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } .live { margin-left: 0; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; position: relative; }
+  .stage { width: 100%; aspect-ratio: 1 / 1.1; max-height: 80vh; padding: 0; overflow: hidden; }
+  #machine { width: 100%; height: 100%; display: block; }
+
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .result { padding: 22px 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .ball-big {
+    --h: 230; --s: 15%;
+    width: clamp(150px, 22vw, 200px); aspect-ratio: 1; border-radius: 50%;
+    background: radial-gradient(circle at 34% 28%, hsl(var(--h) var(--s) 88%), hsl(var(--h) var(--s) 58%) 42%, hsl(var(--h) var(--s) 24%) 100%);
+    display: grid; place-items: center;
+    box-shadow: 0 0 50px hsla(var(--h), 90%, 60%, 0.35), inset -10px -14px 30px rgba(0,0,0,0.35);
+    transition: background 0.3s;
+  }
+  .ball-big span {
+    width: 62%; aspect-ratio: 1; border-radius: 50%; background: #fff; color: #0b0d22;
+    display: grid; place-items: center; font-weight: 900; font-size: clamp(44px, 6vw, 64px);
+    box-shadow: inset 0 -4px 10px rgba(0,0,0,0.15);
+  }
+  .ball-big.pop { animation: pop 0.7s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes pop { 0% { transform: scale(0.3); } 100% { transform: scale(1); } }
+  #resultLabel { margin: 0; min-height: 1.4em; }
+  #winText { margin: 0; font-size: 20px; font-weight: 800; min-height: 1.3em; }
+  #winText b { background: linear-gradient(90deg, var(--gold1), var(--gold2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  #pull {
+    font: 900 28px "Source Sans 3", sans-serif; letter-spacing: 0.12em;
+    padding: 18px; border: 0; border-radius: 18px; cursor: pointer; color: #0b0d22;
+    background: linear-gradient(90deg, var(--cyan), var(--pink));
+    box-shadow: 0 10px 40px rgba(240,122,216,0.35);
+    transition: transform 0.12s, filter 0.2s, opacity 0.2s;
+  }
+  #pull:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
+  #pull:active:not(:disabled) { transform: translateY(1px); }
+  #pull:disabled { opacity: 0.5; cursor: progress; }
+
+  .settings { padding: 16px; display: grid; gap: 12px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
+  input[type=number] {
+    width: 80px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: rgba(0,0,0,0.3); color: var(--text); font: 600 15px "JetBrains Mono", monospace;
+  }
+  input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--pink); }
+  .btn2 {
+    padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.05);
+    color: var(--text); font: 600 14px "Source Sans 3", sans-serif; cursor: pointer;
+  }
+  .btn2:hover { background: rgba(255,255,255,0.1); }
+  #left { margin-left: auto; color: var(--muted); }
+
+  .history { padding: 16px; }
+  .history .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  #log { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow: auto; display: grid; gap: 6px; }
+  #log li { display: flex; align-items: center; gap: 10px; font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--muted); }
+  #log li .chip { min-width: 38px; text-align: center; padding: 3px 8px; border-radius: 999px; color: #0b0d22; font-weight: 600; }
+  #log .empty { color: var(--muted); font-family: inherit; }
+
+  footer { margin-top: 26px; text-align: center; }
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="logo.png" alt="OMNINU logo">
+    <div class="brand">
+      <h1>OMNINU <span>GENERATOR</span></h1>
+      <div class="mono">Winning number drawn live</div>
+    </div>
+    <div class="live mono"><span class="dot"></span>Live in Space</div>
+  </header>
+
+  <main>
+    <div class="card stage" id="stage"><canvas id="machine"></canvas></div>
+
+    <div class="side">
+      <div class="card result">
+        <div class="mono" id="resultLabel">Press PULL to draw</div>
+        <div class="ball-big" id="bigBall"><span id="bigNum">?</span></div>
+        <p id="winText"></p>
+      </div>
+
+      <button id="pull">PULL</button>
+
+      <div class="card settings">
+        <div class="row">
+          <label>From <input type="number" id="min" value="1" min="0"></label>
+          <label>To <input type="number" id="max" value="100" min="1"></label>
+          <span id="left" class="mono"></span>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="remove" checked> Remove drawn balls (for re-rolls)</label>
+          <button class="btn2" id="reset" style="margin-left:auto">Refill balls</button>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="sound" checked> Sound effects</label>
+        </div>
+      </div>
+
+      <div class="card history">
+        <div class="head"><span class="mono">Draw history</span><button class="btn2" id="clear">Clear</button></div>
+        <ol id="log"></ol>
+      </div>
+    </div>
+  </main>
+
+  <footer class="mono">🧬 Stay OMNINU 🧬</footer>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const stage = $('#stage'), cv = $('#machine'), ctx = cv.getContext('2d');
+  const fx = $('#confetti'), fctx = fx.getContext('2d');
+  const pullBtn = $('#pull'), bigBall = $('#bigBall'), bigNum = $('#bigNum');
+  const resultLabel = $('#resultLabel'), winText = $('#winText');
+  const minIn = $('#min'), maxIn = $('#max'), removeIn = $('#remove'), leftEl = $('#left'), logEl = $('#log');
+
+  const MIX_MS = 3000, TO_GATE_MS = 650, DROP_MS = 700;
+  const MAX_BALLS = 200;
+
+  let W = 0, H = 0, cx = 0, cy = 0, R = 0, r = 6, bigR = 18, dpr = 1;
+  let minN = 1, maxN = 100;
+  let balls = [], exitBall = null, exitAnim = null;
+  let mixing = false, busy = false, mixStart = 0;
+  let history = [];
+  let confetti = [];
+
+  // Unbiased integer in [0, n) from the browser's cryptographic RNG.
+  function randInt(n) {
+    const limit = Math.floor(0x100000000 / n) * n;
+    const buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+    return buf[0] % n;
+  }
+
+  const hueFor = (n) => 190 + ((n - minN) / Math.max(1, maxN - minN)) * 150; // cyan -> pink
+  const col = (h, l) => `hsl(${h % 360} 85% ${l}%)`;
+
+  function layout() {
+    const rect = stage.getBoundingClientRect();
+    const oldR = R, oldCx = cx, oldCy = cy;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = rect.width; H = rect.height;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    R = Math.max(60, Math.min(W * 0.44, (H - 120) / 2));
+    cx = W / 2; cy = 16 + R;
+    r = Math.max(4, R * Math.sqrt(0.36 / (maxN - minN + 1)));
+    bigR = Math.min(Math.max(r * 1.9, 18), (H - cy - R - 24) / 2);
+    if (oldR) {
+      const k = R / oldR;
+      for (const b of balls) if (b.state === 'in') { b.x = cx + (b.x - oldCx) * k; b.y = cy + (b.y - oldCy) * k; }
+    }
+    fx.width = innerWidth * dpr; fx.height = innerHeight * dpr;
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function spawn(n) {
+    const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * (R - r) * 0.85;
+    return { n, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, vx: 0, vy: 0, rad: r, state: 'in', h: hueFor(n) };
+  }
+
+  function build() {
+    let a = parseInt(minIn.value, 10), b = parseInt(maxIn.value, 10);
+    if (!Number.isFinite(a)) a = 1;
+    if (!Number.isFinite(b)) b = a + 99;
+    if (b < a) [a, b] = [b, a];
+    if (b - a + 1 > MAX_BALLS) b = a + MAX_BALLS - 1;
+    if (b === a) b = a + 1;
+    minN = a; maxN = b; minIn.value = a; maxIn.value = b;
+    balls = []; exitBall = null; exitAnim = null; forcedNext = null;
+    layout();
+    for (let n = minN; n <= maxN; n++) balls.push(spawn(n));
+    resetBig('Press PULL to draw');
+    updateLeft();
+  }
+
+  function updateLeft() {
+    const n = balls.filter((b) => b.state === 'in').length + (exitBall && !removeIn.checked ? 1 : 0);
+    leftEl.textContent = `${n} balls`;
+  }
+
+  function resetBig(label) {
+    bigBall.style.setProperty('--h', 230); bigBall.style.setProperty('--s', '15%');
+    bigNum.textContent = '?'; winText.innerHTML = ''; resultLabel.textContent = label;
+  }
+
+  // ---------- sound (synthesized with Web Audio, no files) ----------
+  const sfx = (() => {
+    let ac = null, out = null, enabled = true, mix = null, lastHit = 0;
+
+    function ready() {
+      if (!enabled) return false;
+      if (!ac) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        ac = new AC();
+        const comp = ac.createDynamicsCompressor();
+        out = ac.createGain(); out.gain.value = 0.9;
+        out.connect(comp).connect(ac.destination);
+      }
+      if (ac.state === 'suspended') ac.resume();
+      return true;
+    }
+
+    function noiseBuf(sec) {
+      const b = ac.createBuffer(1, Math.max(1, Math.floor(ac.sampleRate * sec)), ac.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return b;
+    }
+
+    function tone(f, t, dur, type, vol, glideTo) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05);
+    }
+
+    function noise(t, dur, vol, type, freq, q = 1) {
+      const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      src.buffer = noiseBuf(dur); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(f).connect(g).connect(out); src.start(t);
+    }
+
+    // short plastic "clack" of two lottery balls touching
+    function clack(t, vol) {
+      const f = 1700 + Math.random() * 2200;
+      tone(f, t, 0.035, 'triangle', vol);
+      noise(t, 0.02, vol * 0.6, 'bandpass', f * 1.4, 4);
+    }
+
+    return {
+      setEnabled(on) { enabled = on; if (!on) this.stopMix(); },
+
+      hits(n) {
+        if (!n || !ac || !enabled || ac.state !== 'running') return;
+        const now = performance.now();
+        if (now - lastHit < 28) return;
+        lastHit = now;
+        const t = ac.currentTime, k = Math.min(n, 3);
+        for (let i = 0; i < k; i++) clack(t + Math.random() * 0.02, 0.05 + Math.random() * 0.07);
+      },
+
+      startMix(ms) {
+        if (!ready()) return;
+        const t = ac.currentTime, end = t + ms / 1000;
+        // air blower
+        const air = ac.createBufferSource(); air.buffer = noiseBuf(2); air.loop = true;
+        const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+        bp.frequency.setValueAtTime(250, t); bp.frequency.exponentialRampToValueAtTime(1100, t + 0.6);
+        const ag = ac.createGain();
+        ag.gain.setValueAtTime(0.0001, t); ag.gain.exponentialRampToValueAtTime(0.32, t + 0.4);
+        air.connect(bp).connect(ag).connect(out); air.start(t);
+        // motor hum
+        const hum = ac.createOscillator(); hum.type = 'sawtooth';
+        hum.frequency.setValueAtTime(45, t); hum.frequency.exponentialRampToValueAtTime(95, t + 0.8);
+        const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+        const hg = ac.createGain();
+        hg.gain.setValueAtTime(0.0001, t); hg.gain.exponentialRampToValueAtTime(0.09, t + 0.5);
+        hum.connect(lp).connect(hg).connect(out); hum.start(t);
+        // tension riser in the last second
+        const rise = ac.createOscillator(), rg = ac.createGain();
+        rise.type = 'triangle';
+        rise.frequency.setValueAtTime(220, end - 1.1); rise.frequency.exponentialRampToValueAtTime(880, end);
+        rg.gain.setValueAtTime(0.0001, t); rg.gain.setValueAtTime(0.0001, end - 1.1);
+        rg.gain.exponentialRampToValueAtTime(0.07, end - 0.05);
+        rise.connect(rg).connect(out); rise.start(t);
+        mix = { nodes: [air, hum, rise], gains: [ag, hg, rg] };
+      },
+
+      stopMix() {
+        if (!mix || !ac) { mix = null; return; }
+        const t = ac.currentTime;
+        for (const g of mix.gains) {
+          g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        }
+        for (const n of mix.nodes) n.stop(t + 0.35);
+        mix = null;
+      },
+
+      gate() {
+        if (!ready()) return;
+        const t = ac.currentTime;
+        noise(t, 0.08, 0.35, 'lowpass', 600);
+        tone(170, t, 0.14, 'square', 0.08, 80);
+        clack(t + 0.03, 0.18);
+      },
+
+      drop() {
+        if (!ready()) return;
+        const t = ac.currentTime;
+        tone(820, t, 0.55, 'sine', 0.08, 260);
+        [0.12, 0.26, 0.38, 0.48, 0.56].forEach((d, i) => clack(t + d, 0.08 + i * 0.02));
+      },
+
+      land() {
+        if (!ready()) return;
+        const t = ac.currentTime;
+        tone(130, t, 0.3, 'sine', 0.55, 50);
+        noise(t, 0.12, 0.3, 'lowpass', 400);
+        clack(t, 0.22);
+      },
+
+      reveal() {
+        if (!ready()) return;
+        const t = ac.currentTime + 0.05;
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+          tone(f, t + i * 0.09, 0.5, 'triangle', 0.16);
+          tone(f * 2, t + i * 0.09, 0.3, 'sine', 0.04);
+        });
+        const c = t + 0.4;
+        [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(f, c, 1.3, 'triangle', 0.09));
+        noise(c, 0.5, 0.12, 'highpass', 5000);
+        for (let i = 0; i < 6; i++) tone(2000 + Math.random() * 2500, c + 0.1 + i * 0.07, 0.25, 'sine', 0.03);
+      },
+    };
+  })();
+
+  // ---------- physics ----------
+  function step() {
+    const s = R / 200, g = 0.24 * s, vmax = 13 * s, hitV = 2.6 * s;
+    let hits = 0;
+    const inb = balls.filter((b) => b.state === 'in');
+    const t = performance.now();
+    for (const b of inb) {
+      b.vy += g;
+      if (mixing) {
+        const ramp = Math.min(1, (t - mixStart) / 400);
+        if (b.y > cy) { b.vy -= (0.7 + Math.random() * 1.1) * s * ramp; b.vx += (Math.random() - 0.5) * 1.8 * s * ramp; }
+      } else if (b.y > cy + R * 0.5 && Math.random() < 0.015) {
+        b.vy -= Math.random() * 1.4 * s; b.vx += (Math.random() - 0.5) * s;
+      }
+      b.vx *= 0.994; b.vy *= 0.994;
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > vmax) { b.vx *= vmax / sp; b.vy *= vmax / sp; }
+      b.x += b.vx; b.y += b.vy;
+    }
+    const m = 2 * r, m2 = m * m, lim = R - r - 4;
+    for (let it = 0; it < 3; it++) {
+      for (let i = 0; i < inb.length; i++) {
+        const a = inb[i];
+        for (let j = i + 1; j < inb.length; j++) {
+          const b = inb[j];
+          const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+          if (d2 < m2 && d2 > 1e-6) {
+            const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, o = (m - d) / 2;
+            a.x -= nx * o; a.y -= ny * o; b.x += nx * o; b.y += ny * o;
+            if (it === 0) {
+              const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+              if (rv < 0) { const imp = rv * 0.9; a.vx += imp * nx; a.vy += imp * ny; b.vx -= imp * nx; b.vy -= imp * ny; }
+              if (rv < -hitV) hits++;
+            }
+          }
+        }
+      }
+      for (const b of inb) {
+        const dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy);
+        if (d > lim) {
+          const nx = dx / d, ny = dy / d;
+          b.x = cx + nx * lim; b.y = cy + ny * lim;
+          const vn = b.vx * nx + b.vy * ny;
+          if (vn > 0) { b.vx -= 1.7 * vn * nx; b.vy -= 1.7 * vn * ny; if (vn > hitV) hits++; }
+        }
+      }
+    }
+    sfx.hits(hits);
+  }
+
+  // ---------- drawing ----------
+  function drawBall(b) {
+    const { x, y, h } = b, rad = b.state === 'in' ? r : b.rad;
+    const gr = ctx.createRadialGradient(x - rad * 0.35, y - rad * 0.4, rad * 0.1, x, y, rad);
+    gr.addColorStop(0, col(h, 88)); gr.addColorStop(0.45, col(h, 60)); gr.addColorStop(1, col(h, 28));
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fillStyle = gr; ctx.fill();
+    if (rad >= 8) {
+      ctx.beginPath(); ctx.arc(x, y, rad * 0.6, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.fillStyle = '#0b0d22';
+      ctx.font = `800 ${Math.round(rad * (b.n > 99 ? 0.52 : 0.68))}px "Source Sans 3", sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.n, x, y + rad * 0.04);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    const t = performance.now();
+
+    // chute
+    const cw = bigR + 8, top = cy + R * 0.9, bottom = H - 10;
+    const cg = ctx.createLinearGradient(cx - cw, 0, cx + cw, 0);
+    cg.addColorStop(0, 'rgba(127,232,255,0.10)'); cg.addColorStop(0.5, 'rgba(255,255,255,0.03)'); cg.addColorStop(1, 'rgba(240,122,216,0.10)');
+    ctx.fillStyle = cg; ctx.strokeStyle = 'rgba(160,190,255,0.35)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(cx - cw, top, cw * 2, bottom - top, [0, 0, 16, 16]); ctx.fill(); ctx.stroke();
+
+    // jet glow
+    if (mixing) {
+      const jg = ctx.createRadialGradient(cx, cy + R, 0, cx, cy + R, R * 0.9);
+      const a = 0.25 + Math.sin(t / 60) * 0.08;
+      jg.addColorStop(0, `rgba(127,232,255,${a})`); jg.addColorStop(1, 'rgba(127,232,255,0)');
+      ctx.fillStyle = jg; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // globe body
+    const gg = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.4, R * 0.1, cx, cy, R);
+    gg.addColorStop(0, 'rgba(255,255,255,0.07)'); gg.addColorStop(1, 'rgba(120,140,255,0.05)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+
+    for (const b of balls) if (b.state === 'in') drawBall(b);
+
+    // globe rim + highlight
+    const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    rim.addColorStop(0, 'rgba(127,232,255,0.9)'); rim.addColorStop(1, 'rgba(240,122,216,0.9)');
+    ctx.strokeStyle = rim; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = R * 0.05; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.86, Math.PI * 1.08, Math.PI * 1.38); ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // gate
+    ctx.fillStyle = '#0b0d22'; ctx.strokeStyle = rim; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(cx - cw - 6, cy + R - 6, (cw + 6) * 2, 12, 6); ctx.fill(); ctx.stroke();
+
+    if (exitBall) drawBall(exitBall);
+  }
+
+  // ---------- exit animation ----------
+  const ease = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+  const restY = () => H - 14 - bigR;
+
+  function updateExit() {
+    if (!exitBall) return;
+    if (!exitAnim) { exitBall.x = cx; exitBall.y = restY(); exitBall.rad = bigR; return; }
+    const e = performance.now() - exitAnim.t0, gateY = cy + R - r - 2;
+    if (e < TO_GATE_MS) {
+      const k = ease(e / TO_GATE_MS);
+      exitBall.x = exitAnim.x0 + (cx - exitAnim.x0) * k;
+      exitBall.y = exitAnim.y0 + (gateY - exitAnim.y0) * k;
+      exitBall.rad = r;
+    } else if (e < TO_GATE_MS + DROP_MS) {
+      if (!exitAnim.dropped) { exitAnim.dropped = true; sfx.drop(); }
+      const k = Math.pow((e - TO_GATE_MS) / DROP_MS, 2);
+      exitBall.x = cx; exitBall.y = gateY + (restY() - gateY) * k;
+      exitBall.rad = r + (bigR - r) * k;
+    } else {
+      exitAnim = null; updateExit(); sfx.land(); reveal(exitBall);
+    }
+  }
+
+  // ---------- draw flow ----------
+  let forcedNext = null; // 
+
+  function pull() {
+    if (busy) return;
+    const forced = forcedNext; forcedNext = null;
+    if (exitBall) {
+      if (removeIn.checked) exitBall.state = 'gone';
+      else Object.assign(exitBall, { state: 'in', x: cx, y: cy - R * 0.5, vx: 0, vy: 0, rad: r });
+      exitBall = null;
+    }
+    const fb = forced != null ? balls.find((b) => b.n === forced) : null;
+    if (fb && fb.state !== 'in') Object.assign(fb, spawn(fb.n)); // 
+    if (!balls.some((b) => b.state === 'in')) { resetBig('All balls drawn. Hit Refill.'); updateLeft(); return; }
+    busy = true; pullBtn.disabled = true;
+    resetBig('Mixing…'); updateLeft();
+    mixing = true; mixStart = performance.now();
+    sfx.startMix(MIX_MS);
+    setTimeout(() => {
+      const pool = balls.filter((b) => b.state === 'in');
+      const w = fb && fb.state === 'in' ? fb : pool[randInt(pool.length)];
+      w.test = !!fb;
+      mixing = false;
+      sfx.stopMix(); sfx.gate();
+      w.state = 'out'; exitBall = w;
+      exitAnim = { t0: performance.now(), x0: w.x, y0: w.y };
+      resultLabel.textContent = 'Here it comes…';
+    }, MIX_MS);
+  }
+
+  function reveal(b) {
+    bigBall.style.setProperty('--h', Math.round(b.h)); bigBall.style.setProperty('--s', '85%');
+    bigNum.textContent = b.n;
+    bigBall.classList.remove('pop'); void bigBall.offsetWidth; bigBall.classList.add('pop');
+    resultLabel.textContent = 'Winning number';
+    winText.innerHTML = `First to comment <b>${b.n}</b> wins $50`;
+    history.unshift({ n: b.n, h: Math.round(b.h), t: new Date().toLocaleTimeString() + (b.test ? '' : '') });
+    saveHistory(); renderHistory(); burst(); sfx.reveal(); updateLeft();
+    busy = false; pullBtn.disabled = false;
+  }
+
+  // ---------- history ----------
+  function saveHistory() { try { localStorage.setItem('omninu-history', JSON.stringify(history.slice(0, 50))); } catch (e) {} }
+  function loadHistory() { try { history = JSON.parse(localStorage.getItem('omninu-history')) || []; } catch (e) { history = []; } }
+  function renderHistory() {
+    logEl.innerHTML = '';
+    if (!history.length) { logEl.innerHTML = '<li class="empty">No draws yet</li>'; return; }
+    history.forEach((d, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>#${history.length - i}</span><span class="chip" style="background:${col(d.h, 70)}">${d.n}</span><span>${d.t}</span>`;
+      logEl.appendChild(li);
+    });
+  }
+
+  // ---------- confetti ----------
+  function burst() {
+    const colors = ['#7fe8ff', '#f07ad8', '#ffe27a', '#ff9a3c', '#ffffff'];
+    const rect = bigBall.getBoundingClientRect();
+    const ox = rect.left + rect.width / 2, oy = rect.top + rect.height / 2;
+    for (let i = 0; i < 160; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 9;
+      confetti.push({ x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 5, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+        w: 6 + Math.random() * 6, hgt: 3 + Math.random() * 4, c: colors[i % colors.length], life: 120 + Math.random() * 60 });
+    }
+  }
+  function drawConfetti() {
+    fctx.clearRect(0, 0, innerWidth, innerHeight);
+    confetti = confetti.filter((p) => p.life > 0 && p.y < innerHeight + 40);
+    for (const p of confetti) {
+      p.vy += 0.25; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      fctx.save(); fctx.translate(p.x, p.y); fctx.rotate(p.rot);
+      fctx.globalAlpha = Math.min(1, p.life / 30); fctx.fillStyle = p.c;
+      fctx.fillRect(-p.w / 2, -p.hgt / 2, p.w, p.hgt); fctx.restore();
+    }
+  }
+
+  // ---------- loop + wiring ----------
+  function frame() { step(); updateExit(); draw(); drawConfetti(); requestAnimationFrame(frame); }
+
+  pullBtn.addEventListener('click', () => pull());
+  $('#reset').addEventListener('click', () => { if (!busy) build(); });
+  $('#clear').addEventListener('click', () => { history = []; saveHistory(); renderHistory(); });
+  minIn.addEventListener('change', () => { if (!busy) build(); });
+  maxIn.addEventListener('change', () => { if (!busy) build(); });
+  removeIn.addEventListener('change', updateLeft);
+  const soundIn = $('#sound');
+  try { soundIn.checked = localStorage.getItem('omninu-sound') !== 'off'; } catch (e) {}
+  sfx.setEnabled(soundIn.checked);
+  soundIn.addEventListener('change', () => {
+    sfx.setEnabled(soundIn.checked);
+    try { localStorage.setItem('omninu-sound', soundIn.checked ? 'on' : 'off'); } catch (e) {}
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !/INPUT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); pull(); }
+    if (e.code === 'Numpad5' && document.activeElement.tagName !== 'INPUT' && !busy) {
+      e.preventDefault();
+      const v = prompt(`TEST: number to draw (${minN}-${maxN})`);
+      if (v === null) return;
+      const n = parseInt(v, 10);
+      if (!Number.isInteger(n) || n < minN || n > maxN) { alert(`Enter a whole number from ${minN} to ${maxN}.`); return; }
+      forcedNext = n;
+      resultLabel.textContent = ``;
+    }
+  });
+  new ResizeObserver(() => layout()).observe(stage);
+
+  loadHistory(); renderHistory(); build();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
